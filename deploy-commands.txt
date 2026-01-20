@@ -1,0 +1,107 @@
+# ============================================
+# Three-Tier Application Deployment Commands
+# ============================================
+# Run these commands in order on Killercoda
+# ============================================
+
+# Step 1: Create Namespace
+kubectl apply -f namespace.yaml
+
+# Step 2: Deploy MySQL Database Layer
+kubectl apply -f database/mysql-secret.yaml
+kubectl apply -f database/mysql-configmap.yaml
+kubectl apply -f database/mysql-deployment.yaml
+kubectl apply -f database/mysql-service.yaml
+
+# Wait for MySQL to be ready (important!)
+kubectl wait --for=condition=ready pod -l app=mysql -n product-app --timeout=120s
+
+# Step 3: Deploy Backend Application Layer
+kubectl apply -f backend/backend-secret.yaml
+kubectl apply -f backend/backend-configmap.yaml
+kubectl apply -f backend/backend-deployment.yaml
+kubectl apply -f backend/backend-service.yaml
+
+# Wait for Backend to be ready
+kubectl wait --for=condition=ready pod -l app=backend -n product-app --timeout=180s
+
+# Step 4: Deploy Frontend Application Layer
+kubectl apply -f frontend/frontend-configmap.yaml
+kubectl apply -f frontend/frontend-deployment.yaml
+kubectl apply -f frontend/frontend-service.yaml
+
+# Wait for Frontend to be ready
+kubectl wait --for=condition=ready pod -l app=frontend -n product-app --timeout=120s
+
+# Step 5: Check Status
+kubectl get pods -n product-app
+kubectl get svc -n product-app
+
+# ============================================
+# Troubleshooting Commands
+# ============================================
+
+# Check pod status
+kubectl get pods -n product-app
+
+# Check pod details if not running
+kubectl describe pod <pod-name> -n product-app
+
+# Check logs
+kubectl logs -n product-app deployment/mysql
+kubectl logs -n product-app deployment/backend
+kubectl logs -n product-app deployment/frontend
+
+# Check specific pod logs
+kubectl logs -n product-app <pod-name>
+
+# Check services
+kubectl get svc -n product-app
+
+# Check ConfigMaps
+kubectl get configmap -n product-app
+kubectl describe configmap backend-config -n product-app
+kubectl describe configmap frontend-nginx-config -n product-app
+
+# Check Secrets
+kubectl get secrets -n product-app
+
+# Test MySQL connection from backend pod
+kubectl exec -it -n product-app deployment/backend -- sh
+# Inside pod: telnet mysql-service.product-app.svc.cluster.local 3306
+
+# Test backend API
+kubectl port-forward -n product-app svc/backend-service 8080:8080
+# Then: curl http://localhost:8080/api/products
+
+# Access Frontend
+# Get node IP
+kubectl get nodes -o wide
+# Access: http://<NODE_IP>:30007
+
+# Or use port-forward
+kubectl port-forward -n product-app svc/frontend-service 8080:80
+# Then: http://localhost:8080
+
+# ============================================
+# Restart Deployments (if needed)
+# ============================================
+
+# Restart backend after config changes
+kubectl rollout restart deployment/backend -n product-app
+
+# Restart frontend after config changes
+kubectl rollout restart deployment/frontend -n product-app
+
+# ============================================
+# Cleanup (if needed)
+# ============================================
+
+# Delete all resources
+kubectl delete namespace product-app
+
+# Or delete individually
+kubectl delete -f frontend/
+kubectl delete -f backend/
+kubectl delete -f database/
+kubectl delete -f namespace.yaml
