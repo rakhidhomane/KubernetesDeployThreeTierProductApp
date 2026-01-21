@@ -13,6 +13,8 @@ spec:
       labels:
         app: backend
     spec:
+      nodeSelector:
+        role: worker
       containers:
       - name: backend
         image: rakhidhomane/product-app-backend:33
@@ -50,11 +52,9 @@ spec:
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
-          timeoutSeconds: 5
         livenessProbe:
           httpGet:
             path: /api/products
             port: 8080
           initialDelaySeconds: 60
           periodSeconds: 15
-          timeoutSeconds: 5
