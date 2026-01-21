@@ -13,9 +13,11 @@ spec:
       labels:
         app: frontend
     spec:
+      nodeSelector:
+        role: worker
       containers:
       - name: frontend
         image: rakhidhomane/product-app-frontend:19
         ports:
         - containerPort: 80
-
+       
