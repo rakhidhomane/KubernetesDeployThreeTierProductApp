@@ -18,6 +18,7 @@ spec:
         image: mysql:8.0
         ports:
         - containerPort: 3306
+
         env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
@@ -29,6 +30,11 @@ spec:
             secretKeyRef:
               name: mysql-secret
               key: MYSQL_DATABASE
+
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql   # MySQL data directory
+
         readinessProbe:
           exec:
             command:
@@ -41,6 +47,7 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 3
+
         livenessProbe:
           exec:
             command:
@@ -53,3 +60,8 @@ spec:
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
+
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
