@@ -17,6 +17,13 @@ kubectl apply -f namespace.yaml
 # Step 2: Deploy MySQL Database Layer
 echo ""
 echo "Step 2: Deploying MySQL Database..."
+
+echo "  - Creating MySQL Persistent Volume..."
+kubectl apply -f database/mysql-pv.yaml
+
+echo "  - Creating MySQL Persistent Volume Claim..."
+kubectl apply -f database/mysql-pvc.yaml
+
 echo "  - Creating MySQL Secret..."
 kubectl apply -f database/mysql-secret.yaml
 
