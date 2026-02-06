@@ -14,7 +14,7 @@ spec:
         app: backend
     spec:
       nodeSelector:
-        role: worker
+        role: app
       containers:
       - name: backend
         image: rakhidhomane/product-app-backend:33
