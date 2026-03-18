@@ -20,4 +20,3 @@ spec:
         image: rakhidhomane/product-app-frontend:19
         ports:
         - containerPort: 80
-       

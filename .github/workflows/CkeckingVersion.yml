@@ -1,0 +1,58 @@
+name: CkeckingVersion
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '**/*.yaml'
+      - '**/*.yml'
+  pull_request:
+    paths:
+      - '**/*.yaml'
+      - '**/*.yml'
+
+jobs:
+  check-kubernetes-versions:
+    name: Check Kubernetes API Versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Validate YAML syntax
+        run: |
+          echo "=== Validating YAML syntax ==="
+          find . \( -name "*.yaml" -o -name "*.yml" \) | grep -v ".github" | while IFS= read -r file; do
+            echo "Checking: $file"
+            yamllint -c .yamllint.yaml "$file"
+          done
+          echo "YAML syntax validation complete."
+
+      - name: Install Pluto (deprecated API checker)
+        run: |
+          PLUTO_VERSION="5.19.3"
+          curl -sSL "https://github.com/FairwindsOps/pluto/releases/download/v${PLUTO_VERSION}/pluto_${PLUTO_VERSION}_linux_amd64.tar.gz" \
+            -o /tmp/pluto.tar.gz
+          tar -xzf /tmp/pluto.tar.gz -C /tmp
+          sudo mv /tmp/pluto /usr/local/bin/pluto
+          pluto version
+
+      - name: Check for deprecated Kubernetes API versions
+        run: |
+          echo "=== Checking for deprecated Kubernetes API versions ==="
+          pluto detect-files -d .
+          echo "API version check complete."
+
+      - name: Check for removed Kubernetes API versions
+        run: |
+          echo "=== Checking for removed Kubernetes API versions ==="
+          pluto detect-files -d . --only-show-removed
+          echo "Removed API version check complete."
