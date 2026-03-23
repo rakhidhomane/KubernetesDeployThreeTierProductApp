@@ -1,0 +1,102 @@
+name: Kubernetes Security Scan
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '**/*.yaml'
+      - '**/*.yml'
+  pull_request:
+    paths:
+      - '**/*.yaml'
+      - '**/*.yml'
+
+jobs:
+  trivy-k8s-scan:
+    name: Trivy Kubernetes Misconfiguration Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: |
+          TRIVY_VERSION="0.57.1"
+          curl -sSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+            -o /tmp/trivy.tar.gz
+          tar -xzf /tmp/trivy.tar.gz -C /tmp
+          sudo mv /tmp/trivy /usr/local/bin/trivy
+          trivy --version
+
+      - name: Scan Kubernetes manifests for misconfigurations
+        run: |
+          echo "=== Scanning Kubernetes manifests for security misconfigurations ==="
+          trivy config \
+            --exit-code 0 \
+            --severity HIGH,CRITICAL \
+            --format table \
+            --ignorefile .trivyignore \
+            .
+          echo "Kubernetes security scan complete."
+
+      - name: Scan and generate SARIF report
+        run: |
+          trivy config \
+            --exit-code 0 \
+            --format sarif \
+            --output trivy-results.sarif \
+            .
+
+      - name: Upload SARIF results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-k8s-misconfiguration
+
+  kubesec-scan:
+    name: Kubesec Deployment Security Score
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install kubesec
+        run: |
+          KUBESEC_VERSION="2.14.2"
+          curl -sSL "https://github.com/controlplaneio/kubesec/releases/download/v${KUBESEC_VERSION}/kubesec_linux_amd64.tar.gz" \
+            -o /tmp/kubesec.tar.gz
+          tar -xzf /tmp/kubesec.tar.gz -C /tmp
+          sudo mv /tmp/kubesec /usr/local/bin/kubesec
+          kubesec version
+
+      - name: Scan deployment manifests with kubesec
+        run: |
+          echo "=== Scanning deployment manifests with kubesec ==="
+          FAILED=0
+          for manifest in backend/backend-deployment.yaml \
+                          frontend/frontend-deployment.yaml \
+                          database/mysql-deployment.yaml; do
+            echo "--- Scanning $manifest ---"
+            RESULT=$(kubesec scan "$manifest")
+            echo "$RESULT"
+            SCORE=$(echo "$RESULT" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data[0]['score'])" 2>/dev/null || echo "0")
+            echo "Score for $manifest: $SCORE"
+            if [ "$SCORE" -lt 0 ] 2>/dev/null; then
+              echo "::error::$manifest scored $SCORE (negative score indicates critical issues)"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -eq 1 ]; then
+            exit 1
+          fi
+          echo "kubesec scan complete."

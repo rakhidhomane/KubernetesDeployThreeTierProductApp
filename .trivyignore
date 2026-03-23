@@ -1,0 +1,8 @@
+# Trivy ignore file for accepted/known findings
+# Replace placeholder credentials in Secret manifests before deploying to production.
+# The following checks are suppressed for demo/development purposes only.
+
+# KSV036: Secrets should not use stringData (plain-text values) — replace with
+# externally managed secrets (e.g., Sealed Secrets, Vault, or External Secrets Operator)
+# before deploying to production.
+AVD-KSV-0036
