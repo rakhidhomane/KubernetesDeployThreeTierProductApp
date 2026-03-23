@@ -13,16 +13,31 @@ spec:
       labels:
         app: mysql
     spec:
+      automountServiceAccountToken: false
       # 🔒 Ensure MySQL runs only on worker node
       nodeSelector:
         role: app
-
+      securityContext:
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: mysql
         image: mysql:8.0
         ports:
         - containerPort: 3306
-
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
         env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
@@ -42,12 +57,9 @@ spec:
         readinessProbe:
           exec:
             command:
-            - mysqladmin
-            - ping
-            - -h
-            - localhost
-            - -uroot
-            - -proot
+            - /bin/sh
+            - -c
+            - MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h localhost -uroot
           initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 3
@@ -55,12 +67,9 @@ spec:
         livenessProbe:
           exec:
             command:
-            - mysqladmin
-            - ping
-            - -h
-            - localhost
-            - -uroot
-            - -proot
+            - /bin/sh
+            - -c
+            - MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h localhost -uroot
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5

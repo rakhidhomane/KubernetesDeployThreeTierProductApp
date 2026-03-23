@@ -13,13 +13,31 @@ spec:
       labels:
         app: backend
     spec:
+      automountServiceAccountToken: false
       nodeSelector:
         role: app
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: backend
         image: rakhidhomane/product-app-backend:33
         ports:
         - containerPort: 8080
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
         env:
         - name: SPRING_DATASOURCE_URL
           valueFrom:
@@ -46,6 +64,9 @@ spec:
             configMapKeyRef:
               name: backend-config
               key: SPRING_JPA_SHOW_SQL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
         readinessProbe:
           httpGet:
             path: /api/products
@@ -58,3 +79,6 @@ spec:
             port: 8080
           initialDelaySeconds: 60
           periodSeconds: 15
+      volumes:
+      - name: tmp
+        emptyDir: {}
