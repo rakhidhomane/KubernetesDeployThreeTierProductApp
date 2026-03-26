@@ -1,0 +1,24 @@
+# Checkov custom configuration for this repository
+# Reference: https://www.checkov.io/2.Basics/CLI%20Command%20Reference.html
+
+# Directories to scan
+directory:
+  - .
+  - iac/terraform
+
+# Frameworks to enable
+framework:
+  - kubernetes
+  - terraform
+
+# Severity threshold — only fail on HIGH and CRITICAL
+compact: true
+quiet: false
+
+# Checks to skip (document reasons here)
+# skip-check:
+#   - CKV_K8S_28   # example: if you have a justified exception
+
+# Output format
+output:
+  - cli

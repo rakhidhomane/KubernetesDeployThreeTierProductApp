@@ -1,0 +1,63 @@
+{
+  "name": "Kubernetes Three-Tier App Workspace",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "version": "latest",
+      "helm": "latest",
+      "minikube": "none"
+    },
+    "ghcr.io/devcontainers/features/terraform:1": {
+      "version": "latest",
+      "tflint": "latest"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "onCreateCommand": "bash .devcontainer/on-create.sh",
+  "postCreateCommand": "pip install --quiet checkov yamllint && echo '✅ Workspace ready. Run: cat README.md'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "hashicorp.terraform",
+        "redhat.vscode-yaml",
+        "ms-vscode.makefile-tools",
+        "github.vscode-github-actions",
+        "timonwong.shellcheck"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "yaml.schemas": {
+          "kubernetes": [
+            "**/*.yaml",
+            "**/*.yml"
+          ]
+        },
+        "[terraform]": {
+          "editor.defaultFormatter": "hashicorp.terraform"
+        }
+      }
+    }
+  },
+  "forwardPorts": [8080, 3000, 30007],
+  "portsAttributes": {
+    "8080": {
+      "label": "Backend API / Frontend Port-Forward",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "Frontend Dev Server",
+      "onAutoForward": "notify"
+    },
+    "30007": {
+      "label": "Frontend NodePort",
+      "onAutoForward": "ignore"
+    }
+  },
+  "remoteEnv": {
+    "KUBECONFIG": "/home/vscode/.kube/config"
+  }
+}

@@ -1,30 +1,65 @@
 # Three-Tier Application Kubernetes Deployment
 
-This directory contains Kubernetes manifests for deploying a three-tier application:
-- **Database Layer**: MySQL 8.0
-- **Backend Layer**: Spring Boot Application
-- **Frontend Layer**: React Application with Nginx
+[![Kubernetes Security Scan](https://github.com/rakhidhomane/KubernetesDeployThreeTierProductApp/actions/workflows/k8s-security-scan.yml/badge.svg)](https://github.com/rakhidhomane/KubernetesDeployThreeTierProductApp/actions/workflows/k8s-security-scan.yml)
+[![YAML & API Version Check](https://github.com/rakhidhomane/KubernetesDeployThreeTierProductApp/actions/workflows/CkeckingVersion.yml/badge.svg)](https://github.com/rakhidhomane/KubernetesDeployThreeTierProductApp/actions/workflows/CkeckingVersion.yml)
 
-## Quick Start
+This repository contains everything you need to deploy and operate a
+three-tier product application on Kubernetes, including:
 
-### Option 1: Using the deployment script
-```bash
-cd 26074_Product_ThreeTierApplication_Kubernetes
-chmod +x deploy.sh
-./deploy.sh
+- **Kubernetes manifests** — database, backend, and frontend layers
+- **IaC (Terraform)** — sample EKS cluster definition in [`iac/terraform/`](iac/terraform/)
+- **CI/CD runbooks** — step-by-step guides in [`runbooks/`](runbooks/)
+- **Security policies** — OPA rules, Checkov config, and Trivy integration in [`security/`](security/)
+
+> **GitHub Codespaces**: open this repo in a Codespace and all required tools
+> (`kubectl`, `terraform`, `trivy`, `kubesec`, `checkov`) are installed
+> automatically via `.devcontainer/`.
+
+---
+
+## Repository layout
+
+```
+.
+├── .devcontainer/          # Codespace configuration (tools, extensions)
+├── .github/workflows/      # CI/CD GitHub Actions workflows
+├── backend/                # Spring Boot backend manifests
+├── database/               # MySQL manifests (PV, PVC, Secret, ConfigMap, Deployment)
+├── frontend/               # React/Nginx frontend manifests
+├── iac/terraform/          # Terraform IaC for EKS cluster provisioning
+├── ingress/                # Kubernetes Ingress resource
+├── networkpolicy/          # Network policies (default-deny + allow rules)
+├── runbooks/               # CI/CD and operational runbooks
+├── security/               # OPA policies, Checkov config, security policy doc
+├── deploy.sh               # Automated deployment script
+├── .trivyignore            # Trivy suppression list
+└── .yamllint.yaml          # YAML lint configuration
 ```
 
-### Option 2: Manual deployment (see deploy-commands.txt)
-Follow the commands in `deploy-commands.txt` in order.
+---
 
-## Deployment Order
+## Open in GitHub Codespaces
 
-1. **Namespace** - Create the namespace first
-2. **MySQL** - Database must be ready before backend starts
-3. **Backend** - Application layer that connects to MySQL
-4. **Frontend** - UI layer that connects to backend via API
+Click the button below (or use the **Code → Open with Codespaces** menu):
 
-## Architecture
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/rakhidhomane/KubernetesDeployThreeTierProductApp)
+
+The Codespace will automatically install:
+
+| Tool | Purpose |
+|------|---------|
+| `kubectl` | Kubernetes CLI |
+| `helm` | Helm package manager |
+| `terraform` | IaC CLI |
+| `trivy` | Container & IaC security scanner |
+| `kubesec` | Kubernetes security scorer |
+| `opa` | Open Policy Agent |
+| `checkov` | IaC security scanner |
+| `yamllint` | YAML syntax linter |
+
+---
+
+## Application architecture
 
 ```
 ┌─────────────────┐
@@ -44,6 +79,27 @@ Follow the commands in `deploy-commands.txt` in order.
 │   Database      │
 └─────────────────┘
 ```
+
+---
+
+## Quick Start
+
+### Option 1: Using the deployment script
+```bash
+cd 26074_Product_ThreeTierApplication_Kubernetes
+chmod +x deploy.sh
+./deploy.sh
+```
+
+### Option 2: Manual deployment (see deploy-commands.txt)
+Follow the commands in `deploy-commands.txt` in order.
+
+## Deployment Order
+
+1. **Namespace** - Create the namespace first
+2. **MySQL** - Database must be ready before backend starts
+3. **Backend** - Application layer that connects to MySQL
+4. **Frontend** - UI layer that connects to backend via API
 
 ## Configuration Files
 
@@ -75,63 +131,118 @@ Follow the commands in `deploy-commands.txt` in order.
 - **Port Forward**: `kubectl port-forward -n product-app svc/backend-service 8080:8080`
   - Then access: `http://localhost:8080/api/products`
 
-## Troubleshooting
+## IaC — Terraform (EKS cluster)
 
-### Check Pod Status
+The [`iac/terraform/`](iac/terraform/) directory contains a sample Terraform
+configuration that provisions an EKS cluster suitable for running this
+application.
+
 ```bash
-kubectl get pods -n product-app
+cd iac/terraform
+terraform init
+terraform plan -var="cluster_name=product-app-dev"
+terraform apply -var="cluster_name=product-app-dev"
 ```
 
-### Check Pod Logs
+See [`iac/terraform/README.md`](iac/terraform/README.md) for full instructions.
+
+---
+
+## CI/CD pipeline
+
+GitHub Actions workflows run automatically on every push / PR to `main`:
+
+| Workflow | What it does |
+|----------|-------------|
+| `CkeckingVersion.yml` | YAML lint + deprecated Kubernetes API check |
+| `k8s-security-scan.yml` | Trivy misconfiguration scan + kubesec scoring |
+
+Results from Trivy appear in the **Security → Code scanning** tab.
+
+### Run the pipeline checks locally
+
 ```bash
-# Backend logs
+# YAML lint
+yamllint -c .yamllint.yaml <file>
+
+# Security scan
+trivy config . --severity HIGH,CRITICAL --trivyignores .trivyignore
+
+# kubesec
+kubesec scan backend/backend-deployment.yaml
+```
+
+Full instructions → [runbooks/build-and-test.md](runbooks/build-and-test.md)
+
+---
+
+## Security policies
+
+| Tool | Config | Purpose |
+|------|--------|---------|
+| Trivy | `.trivyignore` | IaC misconfiguration scanning (CI) |
+| kubesec | inline | Deployment security scoring (CI) |
+| OPA | `security/opa-policies/kubernetes.rego` | Custom Rego policies |
+| Checkov | `security/checkov/.checkov.yaml` | IaC static analysis |
+
+See [`security/SECURITY-POLICY.md`](security/SECURITY-POLICY.md) for the
+full security policy and accepted risk register.
+
+---
+
+## Troubleshooting
+
+### Quick diagnosis commands
+
+```bash
+kubectl get pods -n product-app
+kubectl describe pod <pod-name> -n product-app
 kubectl logs -n product-app deployment/backend
-
-# Frontend logs
 kubectl logs -n product-app deployment/frontend
-
-# MySQL logs
 kubectl logs -n product-app deployment/mysql
 ```
 
-### Check Pod Details
-```bash
-kubectl describe pod <pod-name> -n product-app
-```
+### Common issues
 
-### Check Services
-```bash
-kubectl get svc -n product-app
-```
+| Problem | Fix |
+|---------|-----|
+| Pod stuck in `Pending` | Check node resources / PVC binding |
+| `CrashLoopBackOff` | Check pod logs (`--previous` flag) |
+| Backend can't reach MySQL | Verify MySQL pod is running; check DNS |
+| Frontend blank page | Check nginx config in `frontend-configmap.yaml` |
+| Build workflow fails | See [runbooks/troubleshooting.md](runbooks/troubleshooting.md) |
 
-### Check ConfigMaps
-```bash
-kubectl get configmap -n product-app
-kubectl describe configmap backend-config -n product-app
-```
+**Full troubleshooting guide** → [runbooks/troubleshooting.md](runbooks/troubleshooting.md)
 
-### Restart Deployments
+### Restart deployments after config change
+
 ```bash
-# After changing ConfigMaps/Secrets
-kubectl rollout restart deployment/backend -n product-app
+kubectl rollout restart deployment/backend  -n product-app
 kubectl rollout restart deployment/frontend -n product-app
 ```
 
-## Common Issues
+### Rollback
 
-### Backend can't connect to MySQL
-- Ensure MySQL pod is running: `kubectl get pods -n product-app -l app=mysql`
-- Check MySQL logs: `kubectl logs -n product-app deployment/mysql`
-- Verify backend ConfigMap has correct MySQL service URL
+```bash
+kubectl rollout undo deployment/backend -n product-app
+```
 
-### Frontend can't connect to Backend
-- Ensure backend pod is running: `kubectl get pods -n product-app -l app=backend`
-- Check backend logs: `kubectl logs -n product-app deployment/backend`
-- Verify frontend ConfigMap has correct backend service URL
+Full rollback runbook → [runbooks/rollback.md](runbooks/rollback.md)
 
-### Mixed Content Error (HTTPS/HTTP)
-- This is fixed in the frontend code - API calls use relative paths
-- Ensure frontend ConfigMap nginx config proxies `/api/` correctly
+---
+
+## Runbooks
+
+| Runbook | Description |
+|---------|-------------|
+| [pipeline-overview.md](runbooks/pipeline-overview.md) | CI/CD pipeline architecture |
+| [build-and-test.md](runbooks/build-and-test.md) | Local build and test commands |
+| [deploy.md](runbooks/deploy.md) | Deployment procedures |
+| [troubleshooting.md](runbooks/troubleshooting.md) | Common failures and fixes |
+| [rollback.md](runbooks/rollback.md) | Rollback procedures |
+| [security-scan.md](runbooks/security-scan.md) | Running and interpreting security scans |
+
+---
 
 ## Cleanup
 
