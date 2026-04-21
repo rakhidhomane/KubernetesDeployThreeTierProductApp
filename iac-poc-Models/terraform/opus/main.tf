@@ -255,6 +255,9 @@ resource "aws_instance" "main" {
   }
 
   lifecycle {
+    # Ignore AMI changes to prevent instance replacement when using the latest AMI
+    # data source. This allows the instance to be updated in place rather than
+    # being destroyed and recreated when a new AMI version is published.
     ignore_changes = [ami]
   }
 }

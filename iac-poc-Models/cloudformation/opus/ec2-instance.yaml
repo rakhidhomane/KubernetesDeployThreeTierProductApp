@@ -1,7 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: |
-  CloudFormation template to deploy a secure EC2 instance with VPC, security group,
-  and CloudWatch monitoring. Follows AWS best practices for security and tagging.
+Description: CloudFormation template to deploy a secure EC2 instance with VPC, security group, and CloudWatch monitoring. Follows AWS best practices for security and tagging.
 
 ###############################################################################
 # Metadata
