@@ -1,0 +1,624 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Secure EC2 Instance deployment with monitoring, encryption, and best practices'
+
+###############################################################################
+# Metadata
+###############################################################################
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: 'General Configuration'
+        Parameters:
+          - ProjectName
+          - Environment
+      - Label:
+          default: 'EC2 Instance Configuration'
+        Parameters:
+          - InstanceName
+          - InstanceType
+          - LatestAmiId
+          - KeyName
+      - Label:
+          default: 'Network Configuration'
+        Parameters:
+          - VpcId
+          - SubnetId
+          - AllowSSH
+          - SSHLocation
+          - AllowHTTP
+          - AllowHTTPS
+      - Label:
+          default: 'Storage Configuration'
+        Parameters:
+          - RootVolumeSize
+          - RootVolumeType
+          - EnableEncryption
+      - Label:
+          default: 'Monitoring Configuration'
+        Parameters:
+          - EnableDetailedMonitoring
+          - EnableCloudWatchAlarms
+          - CPUAlarmThreshold
+          - AlarmEmail
+
+    ParameterLabels:
+      ProjectName:
+        default: 'Project Name'
+      Environment:
+        default: 'Environment'
+      InstanceName:
+        default: 'Instance Name'
+      InstanceType:
+        default: 'Instance Type'
+      VpcId:
+        default: 'VPC ID'
+      SubnetId:
+        default: 'Subnet ID'
+
+###############################################################################
+# Parameters
+###############################################################################
+
+Parameters:
+  # General Configuration
+  ProjectName:
+    Type: String
+    Default: 'ec2-demo'
+    Description: 'Name of the project'
+    AllowedPattern: '^[a-z0-9-]+$'
+    ConstraintDescription: 'Must contain only lowercase letters, numbers, and hyphens'
+
+  Environment:
+    Type: String
+    Default: 'dev'
+    Description: 'Environment name'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+
+  # EC2 Instance Configuration
+  InstanceName:
+    Type: String
+    Default: 'web-server'
+    Description: 'Name tag for the EC2 instance'
+
+  InstanceType:
+    Type: String
+    Default: 't3.micro'
+    Description: 'EC2 instance type'
+    AllowedValues:
+      - 't3.micro'
+      - 't3.small'
+      - 't3.medium'
+      - 't3.large'
+      - 't3.xlarge'
+      - 't3.2xlarge'
+      - 't3a.micro'
+      - 't3a.small'
+      - 't3a.medium'
+      - 't3a.large'
+      - 'm5.large'
+      - 'm5.xlarge'
+      - 'm5.2xlarge'
+
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64'
+    Description: 'Latest Amazon Linux 2023 AMI ID (retrieved from SSM Parameter Store)'
+
+  KeyName:
+    Type: String
+    Default: ''
+    Description: '(Optional) EC2 KeyPair name for SSH access. Leave empty to disable SSH key-based access'
+
+  # Network Configuration
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+    Description: 'VPC ID where the instance will be deployed'
+
+  SubnetId:
+    Type: 'AWS::EC2::Subnet::Id'
+    Description: 'Subnet ID where the instance will be deployed'
+
+  AllowSSH:
+    Type: String
+    Default: 'true'
+    Description: 'Allow SSH access to the instance'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  SSHLocation:
+    Type: String
+    Default: '0.0.0.0/0'
+    Description: 'CIDR block allowed to SSH. IMPORTANT: Restrict to your IP in production!'
+    AllowedPattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}\/[0-9]{1,2}$'
+    ConstraintDescription: 'Must be a valid CIDR block (e.g., 203.0.113.0/24)'
+
+  AllowHTTP:
+    Type: String
+    Default: 'true'
+    Description: 'Allow HTTP access to the instance'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  AllowHTTPS:
+    Type: String
+    Default: 'true'
+    Description: 'Allow HTTPS access to the instance'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  # Storage Configuration
+  RootVolumeSize:
+    Type: Number
+    Default: 20
+    Description: 'Size of the root EBS volume in GB'
+    MinValue: 8
+    MaxValue: 16384
+
+  RootVolumeType:
+    Type: String
+    Default: 'gp3'
+    Description: 'EBS volume type'
+    AllowedValues:
+      - 'gp2'
+      - 'gp3'
+      - 'io1'
+      - 'io2'
+
+  EnableEncryption:
+    Type: String
+    Default: 'true'
+    Description: 'Enable EBS volume encryption'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  # Monitoring Configuration
+  EnableDetailedMonitoring:
+    Type: String
+    Default: 'true'
+    Description: 'Enable detailed CloudWatch monitoring (1-minute intervals)'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  EnableCloudWatchAlarms:
+    Type: String
+    Default: 'true'
+    Description: 'Create CloudWatch alarms for the instance'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  CPUAlarmThreshold:
+    Type: Number
+    Default: 80
+    Description: 'CPU utilization threshold for CloudWatch alarm (percentage)'
+    MinValue: 0
+    MaxValue: 100
+
+  AlarmEmail:
+    Type: String
+    Default: ''
+    Description: '(Optional) Email address for alarm notifications. Leave empty to skip SNS topic creation'
+
+###############################################################################
+# Conditions
+###############################################################################
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, '']]
+  EnableSSH: !Equals [!Ref AllowSSH, 'true']
+  EnableHTTP: !Equals [!Ref AllowHTTP, 'true']
+  EnableHTTPS: !Equals [!Ref AllowHTTPS, 'true']
+  CreateAlarms: !Equals [!Ref EnableCloudWatchAlarms, 'true']
+  CreateSNSTopic: !And
+    - !Condition CreateAlarms
+    - !Not [!Equals [!Ref AlarmEmail, '']]
+
+###############################################################################
+# Resources
+###############################################################################
+
+Resources:
+  # Security Group
+  InstanceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Sub '${InstanceName}-sg'
+      GroupDescription: !Sub 'Security group for ${InstanceName} EC2 instance'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - !If
+          - EnableSSH
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Ref SSHLocation
+            Description: 'SSH access'
+          - !Ref 'AWS::NoValue'
+        - !If
+          - EnableHTTP
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: '0.0.0.0/0'
+            Description: 'HTTP access'
+          - !Ref 'AWS::NoValue'
+        - !If
+          - EnableHTTPS
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: '0.0.0.0/0'
+            Description: 'HTTPS access'
+          - !Ref 'AWS::NoValue'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: '0.0.0.0/0'
+          Description: 'Allow all outbound traffic'
+      Tags:
+        - Key: Name
+          Value: !Sub '${InstanceName}-security-group'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: 'CloudFormation'
+
+  # IAM Role for EC2 Instance
+  EC2Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${InstanceName}-role'
+      Description: !Sub 'IAM role for ${InstanceName} EC2 instance'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Tags:
+        - Key: Name
+          Value: !Sub '${InstanceName}-role'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: 'CloudFormation'
+
+  # Instance Profile
+  EC2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      InstanceProfileName: !Sub '${InstanceName}-profile'
+      Roles:
+        - !Ref EC2Role
+
+  # CloudWatch Logs Group
+  LogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '/aws/ec2/${InstanceName}'
+      RetentionInDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${InstanceName}-logs'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # SNS Topic for Alarms (Optional)
+  AlarmTopic:
+    Type: 'AWS::SNS::Topic'
+    Condition: CreateSNSTopic
+    Properties:
+      TopicName: !Sub '${InstanceName}-alarms'
+      DisplayName: !Sub 'CloudWatch Alarms for ${InstanceName}'
+      Subscription:
+        - Endpoint: !Ref AlarmEmail
+          Protocol: email
+      Tags:
+        - Key: Name
+          Value: !Sub '${InstanceName}-alarm-topic'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # EC2 Instance
+  EC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref LatestAmiId
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref 'AWS::NoValue']
+      Monitoring: !Ref EnableDetailedMonitoring
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref RootVolumeSize
+            VolumeType: !Ref RootVolumeType
+            DeleteOnTermination: true
+            Encrypted: !Ref EnableEncryption
+      MetadataOptions:
+        HttpEndpoint: enabled
+        HttpTokens: required
+        HttpPutResponseHopLimit: 1
+        InstanceMetadataTags: enabled
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+          
+          # Update system packages
+          yum update -y
+          
+          # Install CloudWatch agent
+          wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+          rpm -U ./amazon-cloudwatch-agent.rpm
+          rm -f ./amazon-cloudwatch-agent.rpm
+          
+          # Configure CloudWatch agent
+          cat > /opt/aws/amazon-cloudwatch-agent/etc/config.json << 'EOF'
+          {
+            "agent": {
+              "metrics_collection_interval": 60,
+              "run_as_user": "cwagent"
+            },
+            "logs": {
+              "logs_collected": {
+                "files": {
+                  "collect_list": [
+                    {
+                      "file_path": "/var/log/messages",
+                      "log_group_name": "/aws/ec2/${InstanceName}",
+                      "log_stream_name": "{instance_id}/messages"
+                    },
+                    {
+                      "file_path": "/var/log/secure",
+                      "log_group_name": "/aws/ec2/${InstanceName}",
+                      "log_stream_name": "{instance_id}/secure"
+                    }
+                  ]
+                }
+              }
+            },
+            "metrics": {
+              "namespace": "EC2/Custom",
+              "metrics_collected": {
+                "cpu": {
+                  "measurement": [
+                    {"name": "cpu_usage_idle", "rename": "CPU_IDLE", "unit": "Percent"},
+                    {"name": "cpu_usage_iowait", "rename": "CPU_IOWAIT", "unit": "Percent"}
+                  ],
+                  "metrics_collection_interval": 60,
+                  "totalcpu": false
+                },
+                "disk": {
+                  "measurement": [
+                    {"name": "used_percent", "rename": "DISK_USED", "unit": "Percent"}
+                  ],
+                  "metrics_collection_interval": 60,
+                  "resources": ["*"]
+                },
+                "mem": {
+                  "measurement": [
+                    {"name": "mem_used_percent", "rename": "MEM_USED", "unit": "Percent"}
+                  ],
+                  "metrics_collection_interval": 60
+                }
+              }
+            }
+          }
+          EOF
+          
+          # Start CloudWatch agent
+          /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+            -a fetch-config \
+            -m ec2 \
+            -s \
+            -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json
+          
+          # Install and configure SSM agent
+          systemctl enable amazon-ssm-agent
+          systemctl start amazon-ssm-agent
+          
+          # Install common utilities
+          yum install -y htop git wget curl vim
+          
+          # Install and configure web server
+          yum install -y httpd
+          systemctl enable httpd
+          systemctl start httpd
+          
+          # Create sample web page
+          cat > /var/www/html/index.html << 'HTML'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>EC2 Instance - ${InstanceName}</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 50px; background-color: #f0f0f0; }
+                  .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                  h1 { color: #232f3e; }
+                  .info { background-color: #f9f9f9; padding: 15px; border-left: 4px solid #ff9900; margin: 20px 0; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <h1>🚀 EC2 Instance Running Successfully</h1>
+                  <div class="info">
+                      <p><strong>Instance Name:</strong> ${InstanceName}</p>
+                      <p><strong>Environment:</strong> ${Environment}</p>
+                      <p><strong>Project:</strong> ${ProjectName}</p>
+                      <p><strong>Managed By:</strong> CloudFormation</p>
+                  </div>
+                  <p>This instance was provisioned using Infrastructure as Code best practices.</p>
+                  <ul>
+                      <li>✅ Secure configuration (no hardcoded secrets)</li>
+                      <li>✅ CloudWatch monitoring enabled</li>
+                      <li>✅ SSM access configured</li>
+                      <li>✅ Encrypted storage</li>
+                      <li>✅ Proper IAM roles</li>
+                      <li>✅ Tagged resources</li>
+                  </ul>
+              </div>
+          </body>
+          </html>
+          HTML
+          
+          # Log completion
+          echo "User data script completed successfully" >> /var/log/user-data.log
+      Tags:
+        - Key: Name
+          Value: !Ref InstanceName
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: 'CloudFormation'
+
+  # CloudWatch Alarm - CPU Utilization
+  CPUAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Condition: CreateAlarms
+    Properties:
+      AlarmName: !Sub '${InstanceName}-high-cpu'
+      AlarmDescription: 'Alarm when CPU exceeds threshold'
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2Instance
+      AlarmActions: !If
+        - CreateSNSTopic
+        - [!Ref AlarmTopic]
+        - []
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm - Status Check Failed
+  StatusCheckAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Condition: CreateAlarms
+    Properties:
+      AlarmName: !Sub '${InstanceName}-status-check-failed'
+      AlarmDescription: 'Alarm when status check fails'
+      MetricName: StatusCheckFailed
+      Namespace: AWS/EC2
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref EC2Instance
+      AlarmActions: !If
+        - CreateSNSTopic
+        - [!Ref AlarmTopic]
+        - []
+      TreatMissingData: notBreaching
+
+###############################################################################
+# Outputs
+###############################################################################
+
+Outputs:
+  InstanceId:
+    Description: 'EC2 Instance ID'
+    Value: !Ref EC2Instance
+    Export:
+      Name: !Sub '${AWS::StackName}-InstanceId'
+
+  InstancePublicIP:
+    Description: 'Public IP address of the EC2 instance'
+    Value: !GetAtt EC2Instance.PublicIp
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicIP'
+
+  InstancePrivateIP:
+    Description: 'Private IP address of the EC2 instance'
+    Value: !GetAtt EC2Instance.PrivateIp
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateIP'
+
+  InstancePublicDNS:
+    Description: 'Public DNS name of the EC2 instance'
+    Value: !GetAtt EC2Instance.PublicDnsName
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicDNS'
+
+  InstancePrivateDNS:
+    Description: 'Private DNS name of the EC2 instance'
+    Value: !GetAtt EC2Instance.PrivateDnsName
+
+  SecurityGroupId:
+    Description: 'Security Group ID'
+    Value: !Ref InstanceSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityGroupId'
+
+  IAMRoleName:
+    Description: 'IAM Role Name'
+    Value: !Ref EC2Role
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleName'
+
+  IAMRoleARN:
+    Description: 'IAM Role ARN'
+    Value: !GetAtt EC2Role.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RoleARN'
+
+  SSMConnectionCommand:
+    Description: 'AWS Systems Manager Session Manager connection command'
+    Value: !Sub 'aws ssm start-session --target ${EC2Instance} --region ${AWS::Region}'
+
+  SSHConnectionCommand:
+    Description: 'SSH connection command (if SSH key is configured)'
+    Value: !If
+      - HasKeyName
+      - !Sub 'ssh -i ~/.ssh/${KeyName}.pem ec2-user@${EC2Instance.PublicIp}'
+      - 'SSH key not configured. Use AWS Systems Manager Session Manager instead.'
+
+  CloudWatchDashboardURL:
+    Description: 'CloudWatch dashboard URL for the instance'
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#metricsV2:graph=~();query=~%27%7BAWS%2FEC2%2CInstanceId%7D%20${EC2Instance}'
+
+  CloudWatchLogsGroup:
+    Description: 'CloudWatch Logs group name'
+    Value: !Ref LogGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-LogGroup'
+
+  WebURL:
+    Description: 'URL to access the web server (if HTTP is enabled)'
+    Value: !If
+      - EnableHTTP
+      - !Sub 'http://${EC2Instance.PublicIp}'
+      - 'HTTP access not enabled'
