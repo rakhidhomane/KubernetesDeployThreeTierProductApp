@@ -11,7 +11,6 @@ provider "aws" {
         Project     = var.project_name
         Environment = var.environment
         ManagedBy   = "terraform"
-        CreatedDate = timestamp()
       },
       var.additional_tags
     )
@@ -67,7 +66,7 @@ resource "aws_security_group" "ec2" {
 
   # SSH access (restrict in production to specific IP ranges)
   dynamic "ingress" {
-    for_each = var.allow_ssh ? [1] : []
+    for_each = var.allow_ssh ? { enabled = true } : {}
     content {
       description = "SSH access"
       from_port   = 22
@@ -79,7 +78,7 @@ resource "aws_security_group" "ec2" {
 
   # HTTP access
   dynamic "ingress" {
-    for_each = var.allow_http ? [1] : []
+    for_each = var.allow_http ? { enabled = true } : {}
     content {
       description = "HTTP access"
       from_port   = 80
@@ -91,7 +90,7 @@ resource "aws_security_group" "ec2" {
 
   # HTTPS access
   dynamic "ingress" {
-    for_each = var.allow_https ? [1] : []
+    for_each = var.allow_https ? { enabled = true } : {}
     content {
       description = "HTTPS access"
       from_port   = 443

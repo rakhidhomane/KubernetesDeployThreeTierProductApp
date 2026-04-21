@@ -75,7 +75,7 @@ output "iam_instance_profile_name" {
 ###############################################################################
 
 output "ssh_connection_command" {
-  description = "SSH connection command (if SSH is enabled and key is configured)"
+  description = "SSH connection command (if SSH is enabled and key is configured). Note: Adjust the key file path as needed."
   value       = var.key_name != "" ? "ssh -i ~/.ssh/${var.key_name}.pem ec2-user@${aws_instance.main.public_ip}" : "SSH key not configured. Use AWS Systems Manager Session Manager instead."
   sensitive   = true
 }
