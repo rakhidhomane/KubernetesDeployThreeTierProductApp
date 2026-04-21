@@ -1,0 +1,74 @@
+[
+  {
+    "ParameterKey": "ProjectName",
+    "ParameterValue": "ec2-demo"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "dev"
+  },
+  {
+    "ParameterKey": "InstanceName",
+    "ParameterValue": "web-server"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t3.micro"
+  },
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "vpc-0123456789abcdef0"
+  },
+  {
+    "ParameterKey": "SubnetId",
+    "ParameterValue": "subnet-0123456789abcdef0"
+  },
+  {
+    "ParameterKey": "AllowSSH",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "SSHLocation",
+    "ParameterValue": "203.0.113.0/32"
+  },
+  {
+    "ParameterKey": "AllowHTTP",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "AllowHTTPS",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "RootVolumeSize",
+    "ParameterValue": "20"
+  },
+  {
+    "ParameterKey": "RootVolumeType",
+    "ParameterValue": "gp3"
+  },
+  {
+    "ParameterKey": "EnableEncryption",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "EnableDetailedMonitoring",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "EnableCloudWatchAlarms",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "CPUAlarmThreshold",
+    "ParameterValue": "80"
+  },
+  {
+    "ParameterKey": "AlarmEmail",
+    "ParameterValue": "alerts@example.com"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": ""
+  }
+]
