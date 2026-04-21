@@ -359,13 +359,6 @@ Resources:
             VolumeType: !Ref RootVolumeType
             DeleteOnTermination: true
             Encrypted: !Ref EnableEncryption
-            Tags:
-              - Key: Name
-                Value: !Sub '${InstanceName}-root-volume'
-              - Key: Project
-                Value: !Ref ProjectName
-              - Key: Environment
-                Value: !Ref Environment
       MetadataOptions:
         HttpEndpoint: enabled
         HttpTokens: required
